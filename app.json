@@ -4,5 +4,5 @@
 	"repository": "https://github.com/technomile/Heroku-Drupal",
 	"logo": "http://technomile.github.io/img/cms_buildpack_github.png",
 	"keywords": ["drupal", "heroku", "php", "mysql", "apache", "apache2", "nginx"],
-	"addons": ["cleardb:ignite","newrelic:wayne","sendgrid:starter"]
+	"addons": ["cleardb:punch","newrelic:wayne","sendgrid:starter"]
 }
