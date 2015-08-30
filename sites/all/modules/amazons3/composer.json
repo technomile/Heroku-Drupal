@@ -1,0 +1,45 @@
+{
+    "name": "drupal/amazons3",
+    "description": "Provides S3 integration with Drupal's file system.",
+    "license": "GPL-2.0",
+    "authors": [
+        {
+            "name": "Sally Young",
+            "email": "sally@justafish.co.uk"
+        },
+        {
+            "name": "Andrew Berry",
+            "email": "deviantintegral@gmail.com"
+        }
+    ],
+    "require": {
+        "aws/aws-sdk-php": "2.8.5-p1",
+        "capgemini/drupal_doctrine_cache": "0.0.1-p1",
+        "doctrine/cache": "~1.4"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "~4.6",
+        "satooshi/php-coveralls": "0.6.*"
+    },
+    "autoload": {
+        "psr-4": {
+            "Drupal\\amazons3\\": "src/"
+        }
+    },
+    "autoload-dev": {
+      "psr-4": {
+        "Drupal\\amazons3Test\\": "tests/"
+      },
+      "classmap": ["tests/include"]
+    },
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/deviantintegral/drupal-doctrine-cache.git"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/deviantintegral/aws-sdk-php.git"
+        }
+    ]
+}

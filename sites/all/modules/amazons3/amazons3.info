@@ -1,0 +1,15 @@
+name = AmazonS3
+description = Provides S3 integration with Drupal's file system.
+package = Amazon S3
+core = 7.x
+php = 5.4
+configure = admin/config/media/amazons3
+
+dependencies[] = composer_manager
+
+; Information added by Drupal.org packaging script on 2015-05-19
+version = "7.x-2.0"
+core = "7.x"
+project = "amazons3"
+datestamp = "1432047199"
+

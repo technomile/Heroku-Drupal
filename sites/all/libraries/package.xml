@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<package packagerversion="1.9.4" version="2.0" xmlns="http://pear.php.net/dtd/package-2.0" xmlns:tasks="http://pear.php.net/dtd/tasks-1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pear.php.net/dtd/tasks-1.0     http://pear.php.net/dtd/tasks-1.0.xsd     http://pear.php.net/dtd/package-2.0     http://pear.php.net/dtd/package-2.0.xsd">
+ <name>sdk</name>
+ <channel>pear.amazonwebservices.com</channel>
+ <summary>Official PHP SDK for Amazon Web Services.</summary>
+ <description>The AWS SDK for PHP enables PHP developers to easily work with Amazon Web Services and build scalable solutions with Amazon S3, Amazon DynamoDB, Amazon Glacier, and more.</description>
+ <lead>
+  <name>Michael Dowling</name>
+  <user>mtdowling</user>
+  <email>mtdowling@gmail.com</email>
+  <active>yes</active>
+ </lead>
+ <developer>
+  <name>Jeremy Lindblom</name>
+  <user>jeremeamia</user>
+  <email>jeremeamia@gmail.com</email>
+  <active>yes</active>
+ </developer>
+ <developer>
+  <name>Ryan Parman</name>
+  <user>skyzyx</user>
+  <email>ryan@ryanparman.com</email>
+  <active>no</active>
+ </developer>
+ <date>2013-03-15</date>
+ <time>14:46:14</time>
+ <version>
+  <release>1.6.2</release>
+  <api>1.6.2</api>
+ </version>
+ <stability>
+  <release>stable</release>
+  <api>stable</api>
+ </stability>
+ <license uri="http://aws.amazon.com/apache2.0/">Apache 2.0</license>
+ <notes>
+This release adds support for viewing and downloading DB log files to the Amazon RDS client and resolves an issue in the Amazon EC2 client.
+ </notes>
+ <contents>
+  <dir baseinstalldir="AWSSDKforPHP" name="/">
+   <file baseinstalldir="AWSSDKforPHP" md5sum="038d57b4dad91960e4c1b6f0440b89cb" name="authentication/signable.interface.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="012042f31704e4595a06d3ede66fb442" name="authentication/signature_v2query.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="ac167639bd530e7d0346771ae9e161d3" name="authentication/signature_v3json.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="eb1739672ba205b496751294038ad3f5" name="authentication/signature_v3query.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="e995d3d72d16b62f65580f94f688b968" name="authentication/signature_v4json.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="0378ecf9dbfff265555ea14d074fd3e3" name="authentication/signature_v4query.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="322ae6f7d3da56628cf993b2a160a79c" name="authentication/signer.abstract.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="c4b8284459c1dedc345a9f5fc23b5bd4" name="extensions/dynamodbsessionhandler.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="f535895d94034b873bc4ec6af738c4f3" name="extensions/s3browserupload.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="c676b069f1fb2383c483df123325644c" name="extensions/s3streamwrapper.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="de19901a07780f8135d7f7af9eb120fb" name="lib/cachecore/cacheapc.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="e1cc8a1db18935ec4b1fb54daa5ec4db" name="lib/cachecore/cachecore.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="6d538b3a6f50fe256356d9488e52315c" name="lib/cachecore/cachefile.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="9cf82343d252ce00f29604f49fb8ed75" name="lib/cachecore/cachemc.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="770ec2ca78f53ee48dfc57e912c7d3fe" name="lib/cachecore/cachepdo.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="c84bea5a1a12a1858cdc8ac74b292db6" name="lib/cachecore/cachexcache.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="eddc7dec5da4bad0faaba229b7bbb9b1" name="lib/cachecore/icachecore.interface.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="70f142181074f83b33d258164c008cd9" name="lib/cachecore/LICENSE" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="69bacd091afe98a53695d99b1deca48e" name="lib/cachecore/README" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="dc8b835b3e737bfb5905a61391b6e4a6" name="lib/cachecore/_sql/mysql.sql" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="ddc5308c119fb421b3d26eff1238229a" name="lib/cachecore/_sql/pgsql.sql" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="bb14abe0c209c9f54256975bae796c9f" name="lib/cachecore/_sql/README" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="12810a853ca7e2b5dc35654fb241cee5" name="lib/cachecore/_sql/sqlite3.sql" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="d3feef13c80acb6bfcdabefcf052a748" name="lib/dom/ArrayToDOMDocument.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="0fa6fa78db2a71188bc5e98d990b434b" name="lib/dom/Transmogrifier.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="b78517772ef2c63a849568b66cf31d4d" name="lib/requestcore/cacert.pem" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="70f142181074f83b33d258164c008cd9" name="lib/requestcore/LICENSE" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="702485f100351d8dcc1346d087d09656" name="lib/requestcore/README.md" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="11f3a8793a09a2c48eac5cc6389d462c" name="lib/requestcore/requestcore.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="4828aab1cb984d8a5d29e1c0df3cdcbd" name="lib/yaml/LICENSE" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="872df9017f6485111a36d2ce9c1e8bdc" name="lib/yaml/README.markdown" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="2b7116a9f3bf6f9e8cd914c81bf79830" name="lib/yaml/lib/sfYaml.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="28196a0efdcea67d72e1eaf71e936958" name="lib/yaml/lib/sfYamlDumper.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="9a63c1c4637eea3b4e208bea63e52baa" name="lib/yaml/lib/sfYamlInline.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="91d3546a19262abc38275eb8f9d6dfb4" name="lib/yaml/lib/sfYamlParser.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="eb7d13192107ab2459656239fcfe1cf7" name="services/as.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="fc9aba2427ee888595709557273d0d3a" name="services/cloudformation.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="11e1f2756b7184a33de190b28a6fc21a" name="services/cloudfront.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="02befb86d530eaf5bff55251fc6220bd" name="services/cloudsearch.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="dd9c0e75645c8ec1d0b88f0cb46f005b" name="services/cloudwatch.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="9427f4815a58c315cb6635da82ebaa3f" name="services/dynamodb.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="22bc80347dceceece3e3a6552fdf1f7e" name="services/ec2.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="d7341fa0c521238ff6c972fb0c4a834b" name="services/elasticache.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="aa238d4fd9845ece379e908a072f8421" name="services/elasticbeanstalk.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="cab39517d7621fb64e1fbcf702d2ba79" name="services/elb.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="40c10ea9543fc244686056e0b62ee585" name="services/emr.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="1932a6d4608048443bc8d1fbe735ae1b" name="services/iam.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="7e980b90e6047337a5ff91bf2f6c9b2d" name="services/importexport.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="d1b45babf04a87a5acb80644f2a83f2a" name="services/rds.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="2b790d58668244c4966cc5ceb910d651" name="services/s3.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="7a3f2feed532493cbdc99d42818d6207" name="services/sdb.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="c79936a7b7208531c02cd879adcdf85b" name="services/ses.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="b69035bdf6e02094402cbe2a76578715" name="services/sns.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="6e690b296e1450b54991f393c1546f5c" name="services/sqs.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="e1c9880a9a0ed5d1ca5d3e3acd4b5c4c" name="services/storagegateway.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="cc7a60dd6ba80a54dfa22d400c0f9bf9" name="services/sts.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="451ba9052b8badce8bc6ede93e88eb63" name="services/swf.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="2721af9e8f0245849857f6e9ae3742df" name="utilities/array.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="4cb47e8b78b1027c4f027454589ed555" name="utilities/batchrequest.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="9dd7447b0912f9ef5f1d96847311124d" name="utilities/complextype.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="594c0c74cf27fbfc18abb3be7a2ae5ad" name="utilities/credential.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="514e8440381d782910d2d7bb7958d7a6" name="utilities/credentials.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="e58e3ef10b261cf724bd3f0bc177d7dd" name="utilities/gzipdecode.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="f89c6cd6f5fbd76a1fe69849f025a254" name="utilities/hadoopbase.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="dade52693d2e941a255290dc067d03f0" name="utilities/hadoopbootstrap.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="ca2daa41b9813cdef71b90aeb946f20d" name="utilities/hadoopstep.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="6a31c1e8fc10e92c2ad2021e60f2f94d" name="utilities/info.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="067b602b206bada58ba84eb79bd227f7" name="utilities/json.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="12c381fd55f5e15c049349f52ede9702" name="utilities/manifest.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="895dadcf78db50af94dced4e43c2a5ce" name="utilities/mimetypes.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="bc828be75c80912874a6ad90fd164e9e" name="utilities/policy.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="05ed721dc03563e50ee7c0a49ca2eedd" name="utilities/request.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="d920c7663d24564f307ef25fc47b9452" name="utilities/response.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="5a49aff9bd6446608ba198d1584f22de" name="utilities/simplexml.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="0bc765dac89ae9bff812091a1bccb70f" name="utilities/stacktemplate.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="b075f5524ac212e4dd50b6e45a0c5592" name="utilities/stepconfig.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="012cbf03fad9c425a7cd37a134cc57c4" name="utilities/utilities.class.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="c29429ec7a18c756729b5e56dcf46615" name="_compatibility_test/README.md" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="229fac3f481065fd7febad9c38e2085b" name="_compatibility_test/sdk_compatibility.inc.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="c4ce64589e3a502835b270a06afc65c6" name="_compatibility_test/sdk_compatibility_test.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="e76994b0909ccf877e4017d69c259500" name="_compatibility_test/sdk_compatibility_test_cli.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="45f5c9185b83cf4b97ca2dac0840e237" name="_docs/CHANGELOG.md" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="7151ef5d013475c8a755afb4ac237bd5" name="_docs/CONTRIBUTORS.md" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="b5e621a8fe4ee6fceda7e95cb94497b6" name="_docs/DYNAMODBSESSIONHANDLER.html" role="doc" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="759e4ce35f77f1c446de1987a6404605" name="_docs/KNOWNISSUES.md" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="c101f69c0271135eef789cd808a30eae" name="_docs/LICENSE.md" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="38294a34775cac775b46127647177ee2" name="_docs/NOTICE.md" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="f46a4a4c29600818707f086c7138f17c" name="_docs/STREAMWRAPPER_README.html" role="doc" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="8d9d9d1b44dc35483b4cae8619ed95a6" name="_docs/WHERE_IS_THE_API_REFERENCE.md" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="637892a7bbecfefdd2624de0e350aa21" name="_samples/cli-ec2_sorting_and_filtering.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="775136ecaaca312d6150d07ca981c7f8" name="_samples/cli-s3_get_urls_for_uploads.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="5bb037445fed9da2ba8b23f2afe7cba5" name="_samples/cli-s3_progress_bar.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="5fce125531c768e6d0f1a243ed4678e9" name="_samples/html-dynamodb_sessions_login.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="0c933e970db1df2166d9a4effa463d8d" name="_samples/html-sdb_create_domain_data.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="13d920a4d2473746f18573c343d31baf" name="_samples/README.md" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="60f2031a39409b5bf3c99ea869e8827e" name="_samples/AmazonSimpleWorkflow/cron/BasicActivityWorker.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="44ad751ff8ea0ca861b3ab56840a0756" name="_samples/AmazonSimpleWorkflow/cron/BasicWorkflowWorker.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="afdc16d66d559bab2db7d0a477ddfe3b" name="_samples/AmazonSimpleWorkflow/cron/cron_example_utils.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="ea21ae9fd5d8fbfc09e4d08006175561" name="_samples/AmazonSimpleWorkflow/cron/HistoryEventIterator.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="adf1c961f4a8e845fb60f4efd7abb654" name="_samples/AmazonSimpleWorkflow/cron/LICENSE" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="9782b08c52438efcdad690247b056498" name="_samples/AmazonSimpleWorkflow/cron/README.md" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="8928d48522f9f8e8086a2c751612b022" name="_samples/AmazonSimpleWorkflow/cron/start_cron_example_activity_workers.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="26033cab17a71e7e8a268e08e0f6dfe8" name="_samples/AmazonSimpleWorkflow/cron/start_cron_example_workflow.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="33c5beccd4f136cb333115bd876b821d" name="_samples/AmazonSimpleWorkflow/cron/start_cron_example_workflow_workers.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="b7af80295476f281425cfe6095cfcfde" name="_samples/lib/ProgressBar.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="36235fb7f88a1cec806119529058f806" name="_samples/test_files/audio.wav" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="c947c2eb40966243d4471eab7926961c" name="_samples/test_files/plain.txt" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="c784874fd5b2532e64a9ca1090e68a9b" name="_samples/test_files/video.mp4" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="1efd2ffd8cb5426e5c405b709f924b11" name="_samples/test_files/word.doc" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="ade3d570d4567c994cee701cfd913fb0" name="config-sample.inc.php" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="a32d5f2c778f74d84e49a0276d355754" name="README.md" role="php" />
+   <file baseinstalldir="AWSSDKforPHP" md5sum="33280643dbfff0c0cd292d5759b2205e" name="sdk.class.php" role="php" />
+  </dir>
+ </contents>
+ <dependencies>
+  <required>
+   <php>
+    <min>5.2.0</min>
+   </php>
+   <pearinstaller>
+    <min>1.4.0</min>
+   </pearinstaller>
+   <extension>
+    <name>curl</name>
+   </extension>
+  </required>
+ </dependencies>
+ <phprelease />
+ <changelog>
+  <release>
+   <version>
+    <release>1.6.2</release>
+    <api>1.6.2</api>
+   </version>
+   <stability>
+    <release>stable</release>
+    <api>stable</api>
+   </stability>
+   <date>2013-03-15</date>
+   <license uri="http://aws.amazon.com/apache2.0/">Apache 2.0</license>
+   <notes>
+This release adds support for viewing and downloading DB log files to the Amazon RDS client and resolves an issue in the Amazon EC2 client.
+   </notes>
+  </release>
+ </changelog>
+</package>
