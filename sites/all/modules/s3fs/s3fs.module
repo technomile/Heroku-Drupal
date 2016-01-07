@@ -1,0 +1,844 @@
+<?php
+
+/**
+ * @file
+ * Hook implementations and other primary functionality for S3 File System.
+ */
+
+/**
+ * The prefix for our Drupal-cached metadata.
+ */
+define('S3FS_CACHE_PREFIX', 's3fs:uri:');
+define('S3FS_CACHE_BIN', 'cache');
+
+/**
+ * Class used to differentiate between known and unknown exception states.
+ */
+class S3fsException extends Exception {}
+
+/**
+ * Implements hook_stream_wrappers().
+ *
+ * Defines the s3:// stream wrapper.
+ */
+function s3fs_stream_wrappers() {
+  return array(
+    's3' => array(
+      'name' => 'S3 File System',
+      'class' => 'S3fsStreamWrapper',
+      'description' => t('Amazon Simple Storage Service'),
+      'type' => STREAM_WRAPPERS_NORMAL,
+    ),
+  );
+}
+
+/**
+ * Implements hook_stream_wrappers_alter().
+ *
+ * If configured to do so, s3fs takes control of the public:// stream wrapper.
+ */
+function s3fs_stream_wrappers_alter(&$wrappers) {
+  $config = _s3fs_get_config();
+  if (!empty($config['use_s3_for_public'])) {
+    $wrappers['public'] = array(
+      'name' => t('Public files (s3fs)'),
+      'class' => 'S3fsStreamWrapper',
+      'description' => t('Public files served from Amazon S3.'),
+      'type' => STREAM_WRAPPERS_NORMAL,
+    );
+  }
+  if (!empty($config['use_s3_for_private'])) {
+    $wrappers['private'] = array(
+      'name' => t('Private files (s3fs)'),
+      'class' => 'S3fsStreamWrapper',
+      'description' => t('Private files served from Amazon S3.'),
+      'type' => STREAM_WRAPPERS_NORMAL,
+      // Required by the file_eneity module to let it know that this is a private stream.
+      'private' => TRUE,
+    );
+  }
+}
+
+/**
+ * Implements hook_libraries_info()
+ */
+function s3fs_libraries_info() {
+  return array(
+    'awssdk2' => array(
+      'title' => 'AWS SDK for PHP',
+      'vendor url' => 'http://docs.aws.amazon.com/aws-sdk-php/guide/latest/index.html',
+      'download url' => 'https://github.com/aws/aws-sdk-php/releases',
+      'version arguments' => array(
+        'file' => 'Aws/Common/Aws.php',
+        'pattern' => "/const VERSION = '(.*)';/",
+        'lines' => 200,
+      ),
+      'files' => array(
+        'php' => array(
+          'aws-autoloader.php',
+        ),
+      ),
+    ),
+  );
+}
+
+/**
+ * Implements hook_menu().
+ */
+function s3fs_menu() {
+  $items = array();
+
+  $items['admin/config/media/s3fs'] = array(
+    'title' => 'S3 File System',
+    'description' => 'Configure S3 File System.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('s3fs_settings'),
+    'access arguments' => array('administer s3fs'),
+    'file' => 's3fs.admin.inc',
+    'type' => MENU_NORMAL_ITEM,
+  );
+  $items['admin/config/media/s3fs/settings'] = array(
+    'title' => 'Settings',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => 0,
+  );
+  $items['admin/config/media/s3fs/actions'] = array(
+    'title' => 'Actions',
+    'description' => 'Actions for S3 File System.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('s3fs_actions'),
+    'access arguments' => array('administer s3fs'),
+    'file' => 's3fs.admin.inc',
+    'type' => MENU_LOCAL_TASK,
+    'weight' => 10,
+  );
+  // A custom version of system/files/styles/%image_style, based on how the
+  // core Image module creates image styles with image_style_deliver().
+  $items['s3/files/styles/%image_style'] = array(
+    'title' => 'Generate image style in S3',
+    'page callback' => '_s3fs_image_style_deliver',
+    'page arguments' => array(3),
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_permission().
+ */
+function s3fs_permission() {
+  return array(
+    'administer s3fs' => array(
+      'title' => t('Administer S3 File System'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_help().
+ */
+function s3fs_help($path, $arg) {
+  $actions = 'admin/config/media/s3fs/actions';
+  $settings = 'admin/config/media/s3fs';
+  if ($path == $settings) {
+    $msg = t('To perform actions such as refreshing the metadata cache, visit the !link.<br>
+      Disabled fields have been hard-coded in settings.php, and cannot be changed here. See the !README for details.',
+      array(
+        '!link' => l(t('actions page'), $actions),
+        '!README' => l('README', drupal_get_path('module', 's3fs') . '/README.txt'),
+      )
+    );
+    return "<p>$msg</p>";
+  }
+  else if ($path == $actions) {
+    $msg = t('These are the actions that you can perform upon S3 File System.');
+    $msg .= '<br>' . t('To change your settings, visit the !link.', array('!link' => l(t('settings page'), $settings)));
+    return "<p>$msg</p>";
+  }
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ *
+ * Disables the "file system path" fields from the system module's
+ * file_system_settings form when s3fs is taking them over. They do have an
+ * effect if the user makes use of the s3fs-copy-local drush commands, but
+ * we don't want users to think of these fields as being meaningful once s3fs
+ * has alreayd taken over.
+ */
+function s3fs_form_system_file_system_settings_alter(&$form, &$form_state, $form_id) {
+  $config = _s3fs_get_config();
+  if (!empty($config['use_s3_for_public'])) {
+    $form['file_public_path']['#attributes'] = array('disabled' => 'disabled');
+    $form['file_public_path']['#description'] = 'S3 File System has taken control of the public:// filesystem, making this setting irrelevent for typical use.';
+  }
+
+  if (!empty($config['use_s3_for_private'])) {
+    $form['file_private_path']['#attributes'] = array('disabled' => 'disabled');
+    $form['file_private_path']['#description'] = 'S3 File System has taken control of the private:// filesystem, making this setting irrelevent for typical use.';
+  }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+//                          INTERNAL FUNCTIONS
+///////////////////////////////////////////////////////////////////////////////
+
+
+/**
+ * Generates an image derivative in S3.
+ *
+ * This is a re-write of the core Image module's image_style_deliver() function.
+ * It exists to improve the performance of serving newly-created image
+ * derivatives from S3.
+ *
+ * Note to future maintainers: this function is variatic. It accepts two fixed
+ * arguments: $style and $scheme, and any number of further arguments, which
+ * represent the path to the file in S3 (split on the slahses).
+ */
+function _s3fs_image_style_deliver() {
+  // Drupal's black magic calls this function with the image style as arg0,
+  // the scheme as arg1, and the full path to the filename split across arg2+.
+  // So we need to use PHP's version of variatic functions to get the complete
+  // filename.
+  $args = func_get_args();
+  $style = array_shift($args);
+  $scheme = array_shift($args);
+  $filename = implode('/', $args);
+
+  $valid = !empty($style);
+  if (!variable_get('image_allow_insecure_derivatives', FALSE) || strpos(ltrim($filename, '\/'), 'styles/') === 0) {
+    $valid = $valid && isset($_GET[IMAGE_DERIVATIVE_TOKEN]) && $_GET[IMAGE_DERIVATIVE_TOKEN] === image_style_path_token($style['name'], "$scheme://$filename");
+  }
+  if (!$valid) {
+    return MENU_ACCESS_DENIED;
+  }
+
+  $image_uri = "$scheme://$filename";
+  $derivative_uri = image_style_path($style['name'], $image_uri);
+
+  // Confirm that the original source image exists before trying to process it.
+  if (!is_file($image_uri)) {
+    watchdog('s3fs', 'Source image at %source_image_path not found while trying to generate derivative image at %derivative_path.',
+      array('%source_image_path' => $image_uri, '%derivative_path' => $derivative_uri)
+    );
+    return MENU_NOT_FOUND;
+  }
+
+  // Don't start generating the image if the derivative already exists or if
+  // generation is in progress in another thread.
+  $lock_name = "_s3fs_image_style_deliver:{$style['name']}:" . drupal_hash_base64($image_uri);
+  if (!file_exists($derivative_uri)) {
+    $lock_acquired = lock_acquire($lock_name);
+    if (!$lock_acquired) {
+      // Tell client to retry again in 3 seconds. Currently no browsers are known
+      // to support Retry-After.
+      drupal_add_http_header('Status', '503 Service Unavailable');
+      drupal_add_http_header('Content-Type', 'text/html; charset=utf-8');
+      drupal_add_http_header('Retry-After', 3);
+      print t('Image generation in progress. Try again shortly.');
+      drupal_exit();
+    }
+  }
+
+  // Try to generate the image, unless another thread just did it while we were
+  // acquiring the lock.
+  $success = file_exists($derivative_uri);
+  if (!$success) {
+    // If we successfully generate the derivative, wait until S3 acknolowedges
+    // its existence. Otherwise, redirecting to it may cause a 403 error.
+    $success = image_style_create_derivative($style, $image_uri, $derivative_uri) &&
+      file_stream_wrapper_get_instance_by_scheme('s3')->waitUntilFileExists($derivative_uri);
+  }
+
+  if (!empty($lock_acquired)) {
+    lock_release($lock_name);
+  }
+
+  if ($success) {
+    // Perform a 302 Redirect to the new image derivative in S3.
+    drupal_goto(file_create_url($derivative_uri));
+  }
+  else {
+    watchdog('S3 File System', 'Unable to generate an image derivative at %path.', array('%path' => $derivative_uri));
+    drupal_add_http_header('Status', '500 Internal Server Error');
+    drupal_add_http_header('Content-Type', 'text/html; charset=utf-8');
+    print t('Error generating image.');
+    drupal_exit();
+  }
+}
+
+/**
+ * Checks all the configuration options to ensure that they're valid.
+ *
+ * @return bool
+ *   TRUE if config is good to go, otherwise FALSE.
+ */
+function _s3fs_validate_config($config) {
+  if (!empty($config['use_customhost']) && empty($config['hostname'])) {
+    form_set_error('s3fs_hostname', 'You must specify a Hostname to use the Custom Host feature.');
+    return FALSE;
+  }
+  if (!empty($config['use_cname']) && empty($config['domain'])) {
+    form_set_error('s3fs_domain', 'You must specify a CDN Domain Name to use the CNAME feature.');
+    return FALSE;
+  }
+
+  try {
+    $s3 = _s3fs_get_amazons3_client($config);
+  }
+  catch (S3fsException $e) {
+    form_set_error('form', $e->getMessage());
+    return FALSE;
+  }
+
+  // Test the connection to S3, and the bucket name.
+  try {
+    // listObjects() will trigger descriptive exceptions if the credentials,
+    // bucket name, or region are invalid/mismatched.
+    $s3->listObjects(array('Bucket' => $config['bucket'], 'MaxKeys' => 1));
+  }
+  catch (Aws\S3\Exception\InvalidAccessKeyIdException $e) {
+    form_set_error('s3fs_awssdk2_access_key', t('The Access Key in your AWS credentials is invalid.'));
+    return FALSE;
+  }
+  catch (Aws\S3\Exception\SignatureDoesNotMatchException $e) {
+    form_set_error('s3fs_awssdk2_secret_key', t('The Secret Key in your AWS credentials is invalid.'));
+    return FALSE;
+  }
+  catch (Aws\S3\Exception\NoSuchBucketException $e) {
+    form_set_error('s3fs_bucket', t('The specified bucket does not exist.'));
+    return FALSE;
+  }
+  catch (Aws\S3\Exception\PermanentRedirectException $e) {
+    form_set_error('s3fs_region', t('This bucket exists, but it is not in the specified region.'));
+    return FALSE;
+  }
+  catch (Exception $e) {
+    form_set_error('form', t('An unexpected %exception occured, with the following error message:<br>%error',
+      array('%exception' => get_class($e), '%error' => $e->getMessage())));
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**
+ * Refreshes the metadata cache.
+ *
+ * Iterates over the full list of objects in the s3fs_root_folder within S3
+ * bucket (or the entire bucket, if no root folder has been set), caching
+ * their metadata in the database.
+ *
+ * It then caches the ancestor folders for those files, since folders are not
+ * normally stored as actual objects in S3.
+ *
+ * @param array $config
+ *   An s3fs configuration array.
+ */
+function _s3fs_refresh_cache($config) {
+  // Bomb out with an error if our configuration settings are invalid.
+  if (!_s3fs_validate_config($config)) {
+    form_set_error('s3fs_refresh_cache][refresh', t('Unable to validate S3 configuration settings.'));
+    return;
+  }
+  $s3 = _s3fs_get_amazons3_client($config);
+
+  // Set up the iterator that will loop over all the objects in the bucket.
+  $file_metadata_list = array();
+  $iterator_args = array('Bucket' => $config['bucket']);
+  if (!empty($config['root_folder'])) {
+    // If the root_folder option has been set, retrieve from S3 only those files
+    // which reside in the root folder.
+    $iterator_args['Prefix'] = "{$config['root_folder']}/";
+  }
+  $iterator = $s3->getListObjectVersionsIterator($iterator_args);
+  // NOTE: Setting the maximum page size lower than 1000 will have no effect,
+  // as stated by the API docs.
+  $iterator->setPageSize(1000);
+
+  // The $folders array is an associative array keyed by folder paths, which
+  // is constructed as each filename is written to the DB. After all the files
+  // are written, the folder paths are converted to metadata and written.
+  $folders = array();
+  // Start by gathering all the existing folders. If we didn't do this, empty
+  // folders would be lost, because they'd have no files from which to rebuild
+  // themselves.
+  $existing_folders = db_select('s3fs_file', 's')
+    ->fields('s', array('uri'))
+    ->condition('dir', 1, '=');
+  foreach ($existing_folders->execute()->fetchCol(0) as $folder_uri) {
+    $folders[$folder_uri] = TRUE;
+  }
+
+  // Create the temp table, into which all the refreshed data will be written.
+  // After the full refresh is complete, the temp table will be swapped with
+  // the real one.
+  module_load_install('s3fs');
+  $schema = s3fs_schema();
+  try {
+    db_create_table('s3fs_file_temp', $schema['s3fs_file']);
+  }
+  catch (DatabaseSchemaObjectExistsException $e) {
+    // The table already exists, so we can simply truncate it to start fresh.
+    db_truncate('s3fs_file_temp')->execute();
+  }
+
+  // Set up an event listener to consume each page of results before the next
+  // request is made.
+  $dispatcher = $iterator->getEventDispatcher();
+  $dispatcher->addListener('resource_iterator.before_send', function($event) use (&$file_metadata_list, &$folders) {
+    _s3fs_write_metadata($file_metadata_list, $folders);
+  });
+
+  foreach ($iterator as $s3_metadata) {
+    $key = $s3_metadata['Key'];
+    // The root folder is an impementation detail that only appears on S3.
+    // Files' URIs are not aware of it, so we need to remove it beforehand.
+    if (!empty($config['root_folder'])) {
+      $key = str_replace("{$config['root_folder']}/", '', $key);
+    }
+
+    // Figure out the scheme based on the folder prefix.
+    if (strpos($key, 's3fs-public/') === 0) {
+      // Much like the root folder, s3fs-public/ must be removed from URIs.
+      $key = str_replace('s3fs-public/', '', $key);
+      $uri = "public://$key";
+    }
+    else if (strpos($key, 's3fs-private/') === 0) {
+      $key = str_replace('s3fs-private/', '', $key);
+      $uri = "private://$key";
+    }
+    else {
+      // No special prefix means it's an s3:// file.
+      $uri = "s3://$key";
+    }
+
+    if ($uri[strlen($uri) - 1] == '/') {
+      // Treat objects in S3 whose filenames end in a '/' as folders.
+      // But don't store the '/' itself as part of the folder's uri.
+      $folders[rtrim($uri, '/')] = TRUE;
+    }
+    else {
+      // Only store the metadata for the latest version of the file.
+      if (isset($s3_metadata['IsLatest']) && !$s3_metadata['IsLatest']) {
+        continue;
+      }
+      // Files with no StorageClass are actually from the DeleteMarkers list,
+      // rather then the Versions list. They represent a file which has been
+      // deleted, so don't cache them.
+      if (!isset($s3_metadata['StorageClass'])) {
+        continue;
+      }
+      // Buckets with Versioning disabled set all files' VersionIds to "null".
+      // If we see that, unset VersionId to prevent "null" from being written
+      // to the DB.
+      if (isset($s3_metadata['VersionId']) && $s3_metadata['VersionId'] == 'null') {
+        unset($s3_metadata['VersionId']);
+      }
+      $file_metadata_list[] = _s3fs_convert_metadata($uri, $s3_metadata);
+    }
+  }
+
+  // The event listener doesn't fire after the last page is done, so we have
+  // to write the last page of metadata manually.
+  _s3fs_write_metadata($file_metadata_list, $folders);
+
+  // Now that the $folders array contains all the ancestors of every file in
+  // the cache, as well as the existing folders from before the refresh,
+  // write those folders to the DB.
+  if ($folders) {
+    $insert_query = db_insert('s3fs_file_temp')
+      ->fields(array('uri', 'filesize', 'timestamp', 'dir', 'version'));
+    foreach ($folders as $folder_uri => $ph) {
+      $metadata = _s3fs_convert_metadata($folder_uri, array());
+      $insert_query->values($metadata);
+    }
+    // TODO: If this throws an integrity constraint violation, then the user's
+    // S3 bucket has objects that represent folders using a different scheme
+    // than the one we account for above. The best solution I can think of is
+    // to convert any "files" in s3fs_file_temp which match an entry in the
+    // $folders array (which would have been added in _s3fs_write_metadata())
+    // to directories.
+    $insert_query->execute();
+  }
+
+  // Swap the temp table with the real table.
+  db_rename_table('s3fs_file', 's3fs_file_old');
+  db_rename_table('s3fs_file_temp', 's3fs_file');
+  db_drop_table('s3fs_file_old');
+
+  // Clear every s3fs entry in the Drupal cache.
+  cache_clear_all(S3FS_CACHE_PREFIX, S3FS_CACHE_BIN, TRUE);
+
+  drupal_set_message(t('S3 File System cache refreshed.'));
+}
+
+/**
+ * Writes metadata to the temp table in the database.
+ *
+ * @param array $file_metadata_list
+ *   An array passed by reference, which contains the current page of file
+ *   metadata. This function empties out $file_metadata_list at the end.
+ * @param array $folders
+ *   An associative array keyed by folder name, which is populated with the
+ *   ancestor folders of each file in $file_metadata_list.
+ */
+function _s3fs_write_metadata(&$file_metadata_list, &$folders) {
+  if ($file_metadata_list) {
+    $insert_query = db_insert('s3fs_file_temp')
+      ->fields(array('uri', 'filesize', 'timestamp', 'dir', 'version'));
+
+    foreach ($file_metadata_list as $metadata) {
+      // Write the file metadata to the DB.
+      $insert_query->values($metadata);
+
+      // Add the ancestor folders of this file to the $folders array.
+      $uri = drupal_dirname($metadata['uri']);
+      $root = file_uri_scheme($uri) . '://';
+      // Loop through each ancestor folder until we get to the root uri.
+      while ($uri != $root) {
+        $folders[$uri] = TRUE;
+        $uri = drupal_dirname($uri);
+      }
+    }
+    $insert_query->execute();
+  }
+
+  // Empty out the file array, so it can be re-filled by the next request.
+  $file_metadata_list = array();
+}
+
+/**
+ * Convert file metadata returned from S3 into a metadata cache array.
+ *
+ * @param string $uri
+ *   The uri of the resource.
+ * @param array $s3_metadata
+ *   An array containing the collective metadata for the object in S3.
+ *   The caller may send an empty array here to indicate that the returned
+ *   metadata should represent a directory.
+ *
+ * @return array
+ *   A file metadata cache array.
+ */
+function _s3fs_convert_metadata($uri, $s3_metadata) {
+  // Need to fill in a default value for everything, so that DB calls
+  // won't complain about missing fields.
+  $metadata = array(
+    'uri' => $uri,
+    'filesize' => 0,
+    'timestamp' => REQUEST_TIME,
+    'dir' => 0,
+    'version' => '',
+  );
+
+  if (empty($s3_metadata)) {
+    // The caller wants directory metadata.
+    $metadata['dir'] = 1;
+  }
+  else {
+    // The filesize value can come from either the Size or ContentLength
+    // attribute, depending on which AWS API call built $s3_metadata.
+    if (isset($s3_metadata['ContentLength'])) {
+      $metadata['filesize'] = $s3_metadata['ContentLength'];
+    }
+    else if (isset($s3_metadata['Size'])) {
+      $metadata['filesize'] = $s3_metadata['Size'];
+    }
+
+    if (isset($s3_metadata['LastModified'])) {
+      $metadata['timestamp'] = date('U', strtotime($s3_metadata['LastModified']));
+    }
+
+    if (isset($s3_metadata['VersionId'])) {
+      $metadata['version'] = $s3_metadata['VersionId'];
+    }
+  }
+  return $metadata;
+}
+
+/**
+ * Sets up the S3Client object.
+ *
+ * For performance reasons, only one S3Client object will ever be created
+ * within a single request.
+ *
+ * @param $config Array
+ *   Array of configuration settings from which to configure the client.
+ *
+ * @return Aws\S3\S3Client
+ *   The fully-configured S3Client object.
+ */
+function _s3fs_get_amazons3_client($config) {
+  static $s3;
+  static $static_config;
+
+  // If the client hasn't been set up yet, or the config given to this call is
+  // different from the previous call, (re)build the client.
+  if (!isset($s3) || $static_config != $config) {
+    // For the SDK credentials, get the saved settings from _s3fs_get_setting(). But since $config might be populated
+    // with to-be-validated settings, its contents (if set) override the saved settings.
+    $access_key = _s3fs_get_setting('awssdk2_access_key');
+    if (isset($config['awssdk2_access_key'])) {
+      $access_key = $config['awssdk2_access_key'];
+    }
+    $secret_key = _s3fs_get_setting('awssdk2_secret_key');
+    if (isset($config['awssdk2_secret_key'])) {
+      $secret_key = $config['awssdk2_secret_key'];
+    }
+    // BACKWARD COMPATIBILITY.
+    // TODO: REMOVE IN 3.0
+    $use_instance_profile = _s3fs_get_setting('use_instance_profile');
+    if (isset($config['use_instance_profile'])) {
+      $use_instance_profile = $config['use_instance_profile'];
+    }
+    if (_s3fs_get_setting('awssdk2_use_instance_profile') || isset($config['awssdk2_use_instance_profile'])) {
+      // END BACKWARDS COMPATIBILITY
+      $use_instance_profile = _s3fs_get_setting('awssdk2_use_instance_profile');
+      if (isset($config['awssdk2_use_instance_profile'])) {
+        $use_instance_profile = $config['awssdk2_use_instance_profile'];
+      }
+    }
+    $default_cache_config = _s3fs_get_setting('awssdk2_default_cache_config');
+    if (isset($config['awssdk2_default_cache_config'])) {
+      $default_cache_config = $config['awssdk2_default_cache_config'];
+    }
+
+    $library = _s3fs_load_awssdk2_library();
+    if (!$library['loaded']) {
+      throw new S3fsException(
+        t('Unable to load the AWS SDK. Please ensure that the awssdk2 library is installed correctly.')
+      );
+    }
+    else if (!class_exists('Aws\S3\S3Client')) {
+      throw new S3fsException(
+        t('Cannot load Aws\S3\S3Client class. Please ensure that the awssdk2 library is installed correctly.')
+      );
+    }
+    else if (!$use_instance_profile && (!$secret_key || !$access_key)) {
+      throw new S3fsException(t("Your AWS credentials have not been properly configured.
+        Please set them on the S3 File System !settings_page or
+        set \$conf['awssdk2_access_key'] and \$conf['awssdk2_secret_key'] in settings.php.",
+        array('!settings_page' => l(t('settings page'), 'admin/config/media/s3fs/settings')))
+      );
+    }
+    else if ($use_instance_profile && empty($default_cache_config)) {
+      throw new s3fsException(t("Your AWS credentials have not been properly configured.
+        You are attempting to use instance profile credentials but you have not set a default cache location.
+        Please set it on the !settings_page or set \$conf['awssdk2_default_cache_config'] in settings.php.",
+        array('!settings_page' => l(t('settings page'), 'admin/config/media/s3fs/settings')))
+      );
+    }
+
+    // Create the Aws\S3\S3Client object.
+    if ($use_instance_profile) {
+      $client_config = array('default_cache_config' => $default_cache_config);
+    }
+    else {
+      $client_config = array(
+        'key'    => $access_key,
+        'secret' => $secret_key,
+      );
+    }
+    if (!empty($config['region'])) {
+      $client_config['region'] = $config['region'];
+      // Signature v4 is only required in the Beijing and Frankfurt regions.
+      // Also, setting it will throw an exception if a region hasn't been set.
+      $client_config['signature'] = 'v4';
+    }
+    if (!empty($config['use_customhost']) && !empty($config['hostname'])) {
+      $client_config['base_url'] = $config['hostname'];
+    }
+    $s3 = Aws\S3\S3Client::factory($client_config);
+  }
+  $static_config = $config;
+  return $s3;
+}
+
+/**
+ * Returns the current s3fs configuration settings.
+ *
+ * The functions in S3 File System which utilize variables always accept a
+ * config array instead of calling variable_get() themselves. This allows for
+ * their callers to override these configuration settings when necessary (like
+ * when attempting to validate new settings).
+ *
+ * @return array
+ *   An associative array of all the s3fs_* config settings, with the "s3fs_"
+ *   prefix removed from their names.
+ */
+function _s3fs_get_config() {
+  // The global $conf array contains all the variables, including overrides
+  // from settings.php.
+  global $conf;
+  $config = array();
+  foreach ($conf as $key => $value) {
+    if (substr($key, 0, 5) == 's3fs_') {
+      $config[substr($key, 5)] = $value;
+    }
+  }
+  if (!empty($config['root_folder'])) {
+    // Remove any leading or trailing slashes, in case the user added them.
+    $config['root_folder'] = trim($config['root_folder'], '\/');
+  }
+  return $config;
+}
+
+/**
+ * Internal function to retrieve the value of a specific setting, taking overrides in settings.php into account.
+ *
+ * This function is most useful on the config form and for retrieving the awssdk2 settings.
+ * _s3fs_get_config() should be used in most other cases.
+ *
+ * @param string $setting
+ *   The short name of the setting. e.g. the "s3fs_use_cname" variable's short name is "use_cname".
+ */
+function _s3fs_get_setting($setting) {
+  global $conf;
+  // $config is just the s3fs_* variables with that prefix removed.
+  $config = _s3fs_get_config();
+
+  // Get the value from _s3fs_get_config(), if it's set. This will include any overrides from settings.php.
+  $default = !empty($config[$setting]) ? $config[$setting] : '';
+
+  // The SDK settings are treated a little differently, as they have overrides in settings.php with different names.
+  if ($setting == 'awssdk2_access_key' && isset($conf['awssdk2_access_key'])) {
+    $default = $conf['awssdk2_access_key'];
+  }
+  if ($setting == 'awssdk2_secret_key' && isset($conf['awssdk2_secret_key'])) {
+    $default = $conf['awssdk2_secret_key'];
+  }
+  // This OR check is for backwards compatibility with the old s3fs_use_instance_profile variable.
+  // TODO: Remove it in 3.0.
+  if (($setting == 'awssdk2_use_instance_profile' || $setting == 'use_instance_profile') && isset($conf['awssdk2_use_instance_profile'])) {
+    $default = $conf['awssdk2_use_instance_profile'];
+  }
+  if ($setting == 'awssdk2_default_cache_config' && isset($conf['awssdk2_default_cache_config'])) {
+    $default = $conf['awssdk2_default_cache_config'];
+  }
+
+  return $default;
+}
+
+/**
+ * Loads the awssdk2 library.
+ *
+ * This function is a replacement for calling libraries_load('awsdsk2'). It's
+ * needed because libraries_load() caches failures to load the library, meaning
+ * that temporarily having a bad setup (e.g. nonexistent or unreadable files
+ * in the awssdk2 folder) can lead to the library being permanently unable to
+ * be loaded, even after the bad setup is repaired. This can only be remedied
+ * by clearing the full site cache.
+ *
+ * This is especially disasterous when upgrading the awssdk2 library on a
+ * system that is currently using it, because if the upgrade results in a bad
+ * setup, the site cache may become impossible to clear. If some other module's
+ * data has been cached in S3 (e.g. ctools css cache), the cache clearing
+ * process itself will attempt to use S3FS. But if Libaries' cache has not yet
+ * been cleared by this time, it will continue to insist that awssdk2 is not
+ * installed, and the cache clear will crash because s3fs can't function
+ * without the awssdk2 library. This leaves the site in an unrecoverable broken
+ * state.
+ *
+ * @return array
+ *   The array returned by libraries_load('awssdk2'), as if it used no cache.
+ */
+function _s3fs_load_awssdk2_library() {
+  // Start by calling libraries_load().
+  $library = libraries_load('awssdk2');
+  // If it detects and loads the library, great! We're done.
+  if (!empty($library['loaded'])) {
+    return $library;
+  }
+  // Otherwise, clear the awssdk2 value from the Libraries cache, erase the
+  // static data for libraries_load(), then call it again to get the real
+  // state of the library.
+  cache_clear_all('awssdk2', 'cache_libraries');
+  drupal_static_reset('libraries_load');
+  return libraries_load('awssdk2');
+}
+
+/**
+ * Copies all the local files from the specified file system into S3.
+ */
+function _s3fs_copy_file_system_to_s3($scheme) {
+  $config = _s3fs_get_config();
+  $s3 = _s3fs_get_amazons3_client($config);
+
+  if ($scheme == 'public') {
+    $source_folder = realpath(variable_get('file_public_path', conf_path() . '/files'));
+    $target_folder = 's3fs-public/';
+  }
+  else if ($scheme == 'private') {
+    $source_folder = variable_get('file_private_path', '');
+    $source_folder_real = realpath($source_folder);
+    if (empty($source_folder) || empty($source_folder_real)) {
+      drupal_set_message('Private file system base path is unknown. Unable to perform S3 copy.', 'error');
+      return;
+    }
+    $target_folder = 's3fs-private/';
+  }
+
+  if (!empty($config['root_folder'])) {
+    $target_folder = "{$config['root_folder']}/$target_folder";
+  }
+
+  $file_paths = _s3fs_recursive_dir_scan($source_folder);
+  foreach ($file_paths as $path) {
+    $relative_path = str_replace($source_folder . '/', '', $path);
+    print "Copying $scheme://$relative_path into S3...\n";
+    // Finally get to make use of S3fsStreamWrapper's "S3 is actually a local
+    // file system. No really!" functionality.
+    copy($path, "$scheme://$relative_path");
+  }
+
+  drupal_set_message(t('Copied all local %scheme files to S3.', array('%scheme' => $scheme)), 'status');
+}
+
+function _s3fs_recursive_dir_scan($dir) {
+  $output = array();
+  $files = scandir($dir);
+  foreach ($files as $file) {
+    $path = "$dir/$file";
+
+    if ($file != '.' && $file != '..') {
+      // In case they put their private root folder inside their public one,
+      // skip it. When listing the private file system contents, $path will
+      // never trigger this.
+      if ($path == realpath(variable_get('file_private_path'))) {
+        continue;
+      }
+
+      if (is_dir($path)) {
+        $output = array_merge($output, _s3fs_recursive_dir_scan($path));
+      }
+      else {
+        $output[] = $path;
+      }
+    }
+  }
+  return $output;
+}
+
+/**
+ * Implements hook_field_default_field_bases_alter().
+ *
+ * Allows a variable to override all exported field bases to use 'Amazon S3' as
+ * the Upload destination. For example this can be added to environment-specific
+ * Drupal settings files, to allow certain environments to upload to S3 while
+ * other environments upload to the exported (public or private) URI scheme:
+ * @code
+ * $conf['s3fs_file_uri_scheme_override'] = 's3';
+ * @endcode
+ */
+function s3fs_field_default_field_bases_alter(&$fields) {
+  if ($uri_scheme = variable_get('s3fs_file_uri_scheme_override', FALSE)) {
+    foreach ($fields as $key => $item) {
+      if (isset($item['settings']['uri_scheme'])) {
+        $fields[$key]['settings']['uri_scheme'] = $uri_scheme;
+      }
+    }
+  }
+}

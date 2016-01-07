@@ -1,0 +1,326 @@
+<?php
+
+/**
+ * @file
+ * Install, update and uninstall functions for the S3 File System module.
+ */
+
+/**
+ * Implements hook_requirements().
+ */
+function s3fs_requirements($phase) {
+  $t = get_t();
+
+  if ($phase != 'runtime') {
+    return array();
+  }
+
+  if (ini_get('allow_url_fopen')) {
+    $requirements['s3fs_allow_url_fopen'] = array(
+      'severity' => REQUIREMENT_OK,
+      'title' => $t('allow_url_fopen'),
+      'value' => $t('Enabled'),
+    );
+  }
+  else {
+    $requirements['s3fs_allow_url_fopen'] = array(
+      'severity' => REQUIREMENT_ERROR,
+      'title' => $t('allow_url_fopen'),
+      'value' => $t('Disabled'),
+      'description' => $t('The S3 File System module requires that the allow_url_fopen setting be turned on in php.ini.'),
+    );
+  }
+
+  if (PHP_INT_SIZE === 8) {
+    $requirements['s3fs_int64'] = array(
+      'title' => $t('PHP architecture'),
+      'value' => $t('64-bit'),
+      'severity' => REQUIREMENT_OK,
+    );
+  }
+  else {
+    $requirements['s3fs_int64'] = array(
+      'title' => $t('PHP architecture'),
+      'value' => $t('32-bit'),
+      'description' => $t('A 64-bit PHP installation is required in order to support files larger than 2GB.'),
+      'severity' => REQUIREMENT_WARNING,
+    );
+  }
+
+  // Check for the Libraries module. This shouldn't really be needed, but if
+  // the user doesn't have Libraries, the error won't be reported correctly.
+  if (!function_exists('libraries_detect')) {
+    $requirements['s3fs_libraries'] = array(
+      'title' => $t('Libraries module'),
+      'value' => $t('Not installed.'),
+      'description' => $t('S3 File System requires the Libraries module. Please install it from !here.',
+        array('!here' => l('here', 'http://www.drupal.org/project/libraries'))
+      ),
+      'severity' => REQUIREMENT_ERROR,
+    );
+    // Return immediately, since we can't attempt to determine if AWS SDK 2
+    // is installed.
+    return $requirements;
+  }
+
+  $library = libraries_detect('awssdk2');
+  if ($library && !empty($library['installed'])) {
+    $requirements['s3fs_awssdk2'] = array(
+      'title' => $t('AWS SDK for PHP'),
+      'value' => $t('Installed @ v@version.', array('@version' => $library['version'])),
+      'severity' => REQUIREMENT_OK,
+    );
+  }
+  else {
+    $requirements['s3fs_awssdk2'] = array(
+      'title' => $t('AWS SDK for PHP'),
+      'value' => $t('The S3 File System module requires the AWS SDK for PHP v2.x library.'),
+      'description' => $t('The Libraries module reported the following error: !error_message<br>
+        Please check the installation instructions for S3 File System.', array('!error_message' => filter_xss($library['error message']))
+      ),
+      'severity' => REQUIREMENT_ERROR,
+    );
+  }
+
+  return $requirements;
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function s3fs_uninstall() {
+  // Load our module file, since s3fs is current disabled.
+  drupal_load('module', 's3fs');
+  foreach (_s3fs_get_config() as $key => $value) {
+    variable_del("s3fs_$key");
+  }
+
+  // Remove 's3' from the list of public file schemas.
+  $public_schema = variable_get('file_public_schema');
+  if (is_array($public_schema) && in_array('s3', $public_schema)) {
+    $public_schema = array_diff($public_schema, array('s3'));
+    variable_set('file_public_schema', $public_schema);
+  }
+}
+
+/**
+ * Implements hook_schema().
+ */
+function s3fs_schema() {
+  $schema = array();
+  $schema['s3fs_file'] = array(
+    'description' => 'Stores metadata about files in S3.',
+    'fields' => array(
+      'uri' => array(
+        'description' => 'The S3 URI of the file.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+        'binary' => TRUE,
+      ),
+      'filesize' => array(
+        'description' => 'The size of the file in bytes.',
+        'type' => 'int',
+        'size' => 'big',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'timestamp' => array(
+        'description' => 'UNIX timestamp for when the file was added.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'dir' => array(
+        'description' => 'Boolean indicating whether or not this object is a directory.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'version' => array(
+        'description' => 'The S3 VersionId of the object.',
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => FALSE,
+        'default' => '',
+      ),
+    ),
+    'primary key' => array('uri'),
+  );
+  return $schema;
+}
+
+/**
+ * Implements hook_install().
+ *
+ * Adds s3:// to the the core file module's list of public schema.
+ * See https://www.drupal.org/node/2305017 for more info.
+ */
+function s3fs_install() {
+  s3fs_update_7201();
+}
+
+/**
+ * Allow large filesize values in the S3 File Metadata cache.
+ */
+function s3fs_update_7000() {
+  $spec = array(
+    'description' => 'The size of the file in bytes.',
+    'size' => 'big',
+    'type' => 'int',
+    'unsigned' => TRUE,
+    'not null' => TRUE,
+    'default' => 0,
+  );
+  db_change_field('s3fs_file', 'filesize', 'filesize', $spec);
+
+  $config = _s3fs_get_config();
+  if (!empty($config['bucket']) && !empty($config['region'])) {
+    _s3fs_refresh_cache($config);
+  }
+  else {
+    drupal_set_message(t('S3 bucket name or region unknown. Unable to refresh metadata cache table.'), 'error');
+  }
+}
+
+/**
+ * Variable updates.
+ */
+function s3fs_update_7001() {
+  // Rename s3fs_customhost to s3fs_use_customhost. And since the code now
+  // assumes that the variable is set, set it to FALSE if it's not.
+  $customhost = variable_get('s3fs_customhost', 'unset');
+  if ($customhost !== 'unset') {
+    variable_set('s3fs_use_customhost', $customhost);
+    variable_del('s3fs_customhost');
+  }
+  else {
+    variable_set('s3fs_use_customhost', FALSE);
+  }
+
+  // Rename s3fs_cname to s3fs_use_cname.
+  $cname = variable_get('s3fs_cname', 'unset');
+  if ($cname !== 'unset') {
+    variable_set('s3fs_use_cname', $cname);
+    variable_del('s3fs_cname');
+  }
+  else {
+    variable_set('s3fs_use_cname', FALSE);
+  }
+}
+
+/**
+ * Updates the s3fs_file table to use case sensitive collation.
+ */
+function s3fs_update_7002() {
+  $options = Database::getConnectionInfo('default');
+  switch ($options['default']['driver']) {
+    case 'pgsql':
+      // Postgres uses binary collation by default
+      break;
+    case 'sqlite':
+      // SQLite uses binary collation by default
+      break;
+    case 'mysql':
+      // Set MySQL tables to use case-sensitive collation.
+      db_query("ALTER TABLE {s3fs_file} CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin");
+      break;
+  }
+}
+
+/**
+ * Rename the variable s3fs_allow_relative to s3fs_use_relative_urls.
+ */
+function s3fs_update_7003() {
+  $allow_relative = variable_get('s3fs_allow_relative', 'unset');
+  if ($allow_relative !== 'unset') {
+    variable_set('s3fs_use_relative_urls', $allow_relative);
+    variable_del('s3fs_allow_relative');
+  }
+}
+
+/**
+ * Remove the s3fs_use_relative_urls variable.
+ */
+function s3fs_update_7004() {
+  $use_relative = variable_get('s3fs_use_relative_urls', 'unset');
+  if ($use_relative !== 'unset') {
+    variable_del('s3fs_use_relative_urls');
+  }
+}
+
+/**
+ * Remove the extra amazons3 variables that are not necessary for
+ * compatibility with amazons3_cors.
+ */
+function s3fs_update_7005() {
+  $variable_names = db_select('variable', 'v')
+    ->fields('v', array('name'))
+    ->condition('name', 'amazons3_%', 'LIKE')
+    ->execute()
+    ->fetchCol(0);
+  foreach ($variable_names as $name) {
+    if ($name != 'amazons3_bucket') {
+      variable_del($name);
+    }
+  }
+}
+
+/**
+ * Add Version schema change to existing installs.
+ */
+function s3fs_update_7006() {
+  $version = array(
+    'description' => 'The S3 VersionId of the object.',
+    'type' => 'varchar',
+    'length' => 32,
+    'not null' => FALSE,
+    'default' => '',
+  );
+
+  db_add_field('s3fs_file', 'version', $version);
+}
+
+/**
+ * Updates to the s3fs_file table.
+ */
+function s3fs_update_7200() {
+  // These two fields are no longer used as of 7.x-2.0.
+  db_drop_field('s3fs_file', 'uid');
+  db_drop_field('s3fs_file', 'mode');
+
+  // Changed the version field to a varchar, to save space for objects that
+  // don't have a VersionID.
+  $spec = array(
+    'description' => 'The S3 VersionId of the object.',
+    'type' => 'varchar',
+    'length' => 32,
+    'not null' => FALSE,
+    'default' => '',
+  );
+  db_change_field('s3fs_file', 'version', 'version', $spec);
+}
+
+/**
+ * Adds the s3:// schema to the list of public schemas.
+ */
+function s3fs_update_7201() {
+  $public_schema = variable_get('file_public_schema', array('public'));
+  if (!in_array('s3', $public_schema)) {
+    $public_schema[] = 's3';
+  }
+  variable_set('file_public_schema', $public_schema);
+}
+
+/**
+ * Converts the `uri` column of the metadata table to BINARY.
+ */
+function s3fs_update_7202() {
+  // As of the introduction of this update hook, s3fs_schema() now defines
+  // the `uri` column with "binary = TRUE".
+  $schema = s3fs_schema();
+ db_change_field('s3fs_file', 'uri', 'uri', $schema['s3fs_file']['fields']['uri']);
+}
