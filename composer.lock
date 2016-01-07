@@ -10,10 +10,6 @@
                 "type": "git",
                 "url": "https://github.com/technomile/Heroku-Drupal.git"
             },
-			"require": {
-                "ext-gd": "*",
-                "ext-mbstring": "*"
-            },
 			"type": "heroku-buildpack",
 			"license": [
                 "OSL 3.0"
