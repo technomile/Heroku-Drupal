@@ -2590,8 +2590,9 @@ function _drupal_exception_handler($exception) {
   require_once DRUPAL_ROOT . '/includes/errors.inc';
 
   try {
+	echo $message = 'Please click on this link for the installation process to start <a href="'.$GLOBALS['base_url'].'/install.php'.'">'.$GLOBALS['base_url'].'/install.php'.'</a>';
 	// Log the message to the watchdog and return an error page to the user.
-    _drupal_log_error(_drupal_decode_exception($exception), TRUE);
+    //_drupal_log_error(_drupal_decode_exception($exception), TRUE);
   }
   catch (Exception $exception2) {
     // Another uncaught exception was thrown while handling the first one.
