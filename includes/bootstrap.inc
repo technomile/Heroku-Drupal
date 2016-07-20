@@ -3770,8 +3770,8 @@ function _drupal_shutdown_function() {
     // If we are displaying errors, then do so with no possibility of a further uncaught exception being thrown.
    require_once DRUPAL_ROOT . '/includes/errors.inc';
    if (error_displayable()) {
-      print '<h1>Uncaught exception thrown in shutdown function.</h1>';
-      print '<p>' . _drupal_render_exception_safe($exception) . '</p><hr />';
+      //print '<h1>Uncaught exception thrown in shutdown function.</h1>';
+      //print '<p>' . _drupal_render_exception_safe($exception) . '</p><hr />';
     }
   }
 }
